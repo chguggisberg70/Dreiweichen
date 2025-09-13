@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APKs (Debug & Release)
 
 on:
   workflow_dispatch:
@@ -33,34 +33,38 @@ jobs:
       - name: Make wrapper executable
         run: chmod +x gradlew
 
-      - name: Build Debug APK (with stacktrace)
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+      # Build Debug & Release
+      - name: Assemble Debug & Release
+        run: ./gradlew assembleDebug assembleRelease --stacktrace --no-daemon
 
-      # Hilft uns zu sehen, wo die APK liegt
-      - name: List build outputs
+      # Sichtprüfung: wo liegen die Dateien?
+      - name: List outputs
         run: |
-          echo "Tree under app/build:"
-          find app/build -maxdepth 4 -type f -print || true
+          echo "== APKs =="
+          find app/build/outputs/apk -type f -maxdepth 3 -print || true
+          echo "== AABs =="
+          find app/build/outputs/bundle -type f -maxdepth 3 -print || true
 
-      # <-- Das ist der wichtige Teil, der vorher gefehlt hat
-      - name: Upload APK
+      # Debug-APK hochladen
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
-        if: success()
         with:
           name: DreiWeichen-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
 
-      # Falls doch Fehler: Logs mitschicken
-      - name: Save Gradle logs (if any)
-        if: failure()
-        run: |
-          mkdir -p logs
-          cp -r app/build/reports logs/ || true
-          cp -r app/build/outputs/logs logs/ || true
+      # Release-APK (unsigniert) hochladen
+      - name: Upload Release APK (unsigned)
+        uses: actions/upload-artifact@v4
+        with:
+          name: DreiWeichen-release-apk-unsigned
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
 
-      - name: Upload Gradle logs
+      # Falls es mal schiefgeht: Reports mitgeben
+      - name: Upload Gradle reports on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: gradle-logs
-          path: logs
+          name: gradle-reports
+          path: |
+            app/build/reports
+            app/build/outputs/logs
