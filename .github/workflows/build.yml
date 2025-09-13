@@ -34,20 +34,33 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK (with stacktrace)
-        run: ./gradlew assembleDebug --stacktrace
-        continue-on-error: true
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
 
-      - name: Save full Gradle log
+      # Hilft uns zu sehen, wo die APK liegt
+      - name: List build outputs
+        run: |
+          echo "Tree under app/build:"
+          find app/build -maxdepth 4 -type f -print || true
+
+      # <-- Das ist der wichtige Teil, der vorher gefehlt hat
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: DreiWeichen-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      # Falls doch Fehler: Logs mitschicken
+      - name: Save Gradle logs (if any)
+        if: failure()
         run: |
           mkdir -p logs
-          cp build/*.log logs/ || true
-          cp app/build/*.log logs/ || true
-          cp app/build/**/*.log logs/ || true
-        continue-on-error: true
+          cp -r app/build/reports logs/ || true
+          cp -r app/build/outputs/logs logs/ || true
 
       - name: Upload Gradle logs
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: gradle-logs
           path: logs
-        if: always()
