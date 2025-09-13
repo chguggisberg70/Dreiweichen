@@ -1,1 +1,47 @@
 
+name: Build Android APK (ZIP unpack)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unzip project
+        run: |
+          unzip -o "DreiWeichen_GitHubActions_Projekt.zip" -d .
+          ls -la app || true
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK components
+        run: |
+          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+          yes | sdkmanager --licenses
+
+      - name: Cache Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build Debug APK
+        run: gradle assembleDebug
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DreiWeichen-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
