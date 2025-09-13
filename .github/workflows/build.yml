@@ -11,7 +11,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Unzip project
-        run: unzip -o "DreiWeichen_GitHubActions_Projekt.zip" -d .
+        run: unzip -o "DreiWeichen_v2.zip" -d .
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -27,11 +27,14 @@ jobs:
           sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
           yes | sdkmanager --licenses
 
-      - name: Generate Gradle Wrapper
-        run: gradle wrapper --gradle-version 8.7
+      - name: Generate Gradle Wrapper (8.7)
+        run: gradle wrapper --gradle-version 8.7 --distribution-type all
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
+      - name: Make wrapper executable
+        run: chmod +x gradlew
+
+      - name: Build Debug APK (with stacktrace)
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
