@@ -3,21 +3,35 @@ name: Build Android APKs (Debug & Release)
 on:
   workflow_dispatch:
 
+env:
+  ZIP_NAME: DreiWeichen_v6.2.zip
+  GRADLE_OPTS: -Dorg.gradle.daemon=false
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify ZIP exists
+        run: |
+          if [ ! -f "$ZIP_NAME" ]; then
+            echo "ZIP '$ZIP_NAME' nicht gefunden im Repo-Root!"
+            echo "Verfügbare Dateien:"
+            ls -la
+            exit 1
+          fi
+
       - name: Unzip project
-        run: unzip -o "DreiWeichen_v6_1.zip" -d .
+        run: unzip -o "$ZIP_NAME" -d .
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: 17
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -25,7 +39,7 @@ jobs:
       - name: Install SDK components
         run: |
           sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
-          yes | sdkmanager --licenses
+          yes | sdkmanager --licenses > /dev/null
 
       - name: Generate Gradle Wrapper (8.7)
         run: gradle wrapper --gradle-version 8.7 --distribution-type all
@@ -33,33 +47,30 @@ jobs:
       - name: Make wrapper executable
         run: chmod +x gradlew
 
-      # Build Debug & Release
-      - name: Assemble Debug & Release
+      - name: Build Debug & Release (with stacktrace)
         run: ./gradlew assembleDebug assembleRelease --stacktrace --no-daemon
 
-      # Sichtprüfung: wo liegen die Dateien?
       - name: List outputs
+        if: always()
         run: |
-          echo "== APKs =="
-          find app/build/outputs/apk -type f -maxdepth 3 -print || true
-          echo "== AABs =="
-          find app/build/outputs/bundle -type f -maxdepth 3 -print || true
+          echo "== APKs =="; find app/build/outputs/apk -type f -maxdepth 3 -print || true
+          echo "== Bundles =="; find app/build/outputs/bundle -type f -maxdepth 3 -print || true
+          echo "== Reports =="; find app/build/reports -type f -maxdepth 3 -print || true
 
-      # Debug-APK hochladen
       - name: Upload Debug APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: DreiWeichen-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
 
-      # Release-APK (unsigniert) hochladen
       - name: Upload Release APK (unsigned)
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: DreiWeichen-release-apk-unsigned
           path: app/build/outputs/apk/release/app-release-unsigned.apk
 
-      # Falls es mal schiefgeht: Reports mitgeben
       - name: Upload Gradle reports on failure
         if: failure()
         uses: actions/upload-artifact@v4
