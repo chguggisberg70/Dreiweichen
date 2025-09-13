@@ -1,10 +1,7 @@
-
 name: Build Android APK (ZIP unpack)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main, master ]
 
 jobs:
   build:
@@ -14,9 +11,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Unzip project
-        run: |
-          unzip -o "DreiWeichen_GitHubActions_Projekt.zip" -d .
-          ls -la app || true
+        run: unzip -o "DreiWeichen_GitHubActions_Projekt.zip" -d .
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -32,13 +27,11 @@ jobs:
           sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
           yes | sdkmanager --licenses
 
-      - name: Cache Gradle
-        uses: gradle/actions/setup-gradle@v3
+      - name: Generate Gradle Wrapper
+        run: gradle wrapper --gradle-version 8.7
 
       - name: Build Debug APK
-        run: gradle assembleDebug
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+        run: ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
