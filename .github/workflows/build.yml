@@ -34,11 +34,20 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK (with stacktrace)
-        run: ./gradlew assembleDebug --stacktrace || (cat app/build/reports/*/*.* || true; exit 1)
+        run: ./gradlew assembleDebug --stacktrace
+        continue-on-error: true
 
-      - name: Upload build reports
-        if: failure()
+      - name: Save full Gradle log
+        run: |
+          mkdir -p logs
+          cp build/*.log logs/ || true
+          cp app/build/*.log logs/ || true
+          cp app/build/**/*.log logs/ || true
+        continue-on-error: true
+
+      - name: Upload Gradle logs
         uses: actions/upload-artifact@v4
         with:
-          name: build-reports
-          path: app/build/reports
+          name: gradle-logs
+          path: logs
+        if: always()
