@@ -34,10 +34,11 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK (with stacktrace)
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew assembleDebug --stacktrace || (cat app/build/reports/*/*.* || true; exit 1)
 
-      - name: Upload APK
+      - name: Upload build reports
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: DreiWeichen-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: build-reports
+          path: app/build/reports
