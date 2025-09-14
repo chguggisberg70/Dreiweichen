@@ -1,4 +1,4 @@
-package com.example.dreiweichen.ui.theme
+package com.chrigu.dreiweichen.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
