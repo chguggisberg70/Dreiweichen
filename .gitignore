@@ -13,3 +13,10 @@
 .externalNativeBuild
 .cxx
 local.properties
+# keep Gradle wrapper in VCS
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+!gradlew
+!gradlew.bat
+/.idea/
+/*.iml
