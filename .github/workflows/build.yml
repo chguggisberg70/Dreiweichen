@@ -1,4 +1,4 @@
-name: Android CI (Debug + Release)
+name: Android CI (APK + AAB)
 
 on:
   push:
@@ -20,9 +20,9 @@ jobs:
 
     env:
       JAVA_DISTRIBUTION: temurin
-      JAVA_VERSION: '21'     # du nutzt lokal Java 21
-      ANDROID_API: '34'      # wenn du auf 36 baust, hier 36 setzen
-      BUILD_TOOLS: '34.0.0'  # ggf. zu 36.0.0 ändern, falls compileSdk=36
+      JAVA_VERSION: '21'
+      ANDROID_API: '34'        # falls du auf 36 gehst, hier auch 36 eintragen
+      BUILD_TOOLS: '34.0.0'
 
     steps:
       - name: Checkout
@@ -43,8 +43,9 @@ jobs:
           api-level: ${{ env.ANDROID_API }}
           build-tools: ${{ env.BUILD_TOOLS }}
 
-      - name: Gradle cache
-        uses: gradle/gradle-build-action@v3
+      # neue, empfohlene Gradle-Action (ersetzt die alte gradle-build-action)
+      - name: Setup Gradle (cache & config)
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
@@ -58,15 +59,13 @@ jobs:
         run: ./gradlew lint
         continue-on-error: true
 
-      - name: Build Debug & Release APK
-        run: ./gradlew assembleDebug assembleRelease --stacktrace
+      # >>> baut Debug-APK und Release-AAB
+      - name: Build Debug APK + Release AAB
+        run: ./gradlew assembleDebug bundleRelease --stacktrace
 
-      # ---------- optional: Release signieren, wenn Secrets gesetzt sind ----------
-      # Erwarte folgende Secrets im Repo:
-      # ANDROID_KEYSTORE_B64  (Base64 des .jks/.keystore)
-      # ANDROID_KEY_ALIAS
-      # ANDROID_KEYSTORE_PASSWORD
-      # ANDROID_KEY_PASSWORD
+      # ---------- optional: Release-Bundle signieren ----------
+      # Secrets (Repo → Settings → Secrets and variables → Actions):
+      # ANDROID_KEYSTORE_B64, ANDROID_KEY_ALIAS, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_PASSWORD
       - name: Decode keystore (optional)
         shell: bash
         run: |
@@ -77,32 +76,24 @@ jobs:
             echo "No ANDROID_KEYSTORE_B64 secret set. Skipping signing."
           fi
 
-      - name: Sign Release APK (optional)
+      - name: Sign AAB (optional)
+        if: ${{ secrets.ANDROID_KEYSTORE_B64 != '' }}
         shell: bash
         env:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          STOREPASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEYPASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [[ -n "${{ secrets.ANDROID_KEYSTORE_B64 }}" ]]; then
-            APK=$(ls app/build/outputs/apk/release/*-release-unsigned.apk 2>/dev/null | head -n 1 || true)
-            if [[ -z "$APK" ]]; then
-              echo "Unsigned release APK not found. Skipping signing."
-              exit 0
-            fi
-            ALIGNED=app/build/outputs/apk/release/app-release-aligned.apk
-            zipalign -p -f 4 "$APK" "$ALIGNED"
-            apksigner sign \
-              --ks keystore.jks \
-              --ks-key-alias "$KEY_ALIAS" \
-              --ks-pass env:KEYSTORE_PASSWORD \
-              --key-pass env:KEY_PASSWORD \
-              --out app/build/outputs/apk/release/app-release-signed.apk \
-              "$ALIGNED"
-            apksigner verify app/build/outputs/apk/release/app-release-signed.apk
-          else
-            echo "No keystore secrets; skipping signing."
+          AAB=$(ls app/build/outputs/bundle/release/*.aab | head -n 1)
+          if [[ -z "$AAB" ]]; then
+            echo "No AAB found"; exit 1
           fi
+          # AAB wird mit jarsigner signiert (zipalign ist bei AAB nicht nötig)
+          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
+            -keystore keystore.jks -storepass "$STOREPASS" -keypass "$KEYPASS" \
+            "$AAB" "$KEY_ALIAS"
+          cp "$AAB" app/build/outputs/bundle/release/app-release-signed.aab
+          jarsigner -verify -verbose -certs app/build/outputs/bundle/release/app-release-signed.aab
 
       # ---------- Artefakte hochladen ----------
       - name: Upload Debug APK
@@ -110,29 +101,21 @@ jobs:
         with:
           name: Dreiweichen-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
           if-no-files-found: warn
-          retention-days: 7
 
-      - name: Upload Release APK (unsigned)
+      - name: Upload Release AAB (unsigned)
         uses: actions/upload-artifact@v4
         with:
-          name: Dreiweichen-release-unsigned-apk
-          path: app/build/outputs/apk/release/*-release-unsigned.apk
+          name: Dreiweichen-release-aab-unsigned
+          path: app/build/outputs/bundle/release/*.aab
+          retention-days: 14
           if-no-files-found: warn
-          retention-days: 7
 
-      - name: Upload Release APK (signed)
+      - name: Upload Release AAB (signed)
         uses: actions/upload-artifact@v4
         with:
-          name: Dreiweichen-release-signed-apk
-          path: app/build/outputs/apk/release/app-release-signed.apk
+          name: Dreiweichen-release-aab-signed
+          path: app/build/outputs/bundle/release/app-release-signed.aab
+          retention-days: 14
           if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Upload Mapping (falls vorhanden)
-        uses: actions/upload-artifact@v4
-        with:
-          name: Dreiweichen-mapping
-          path: app/build/outputs/mapping/release/mapping.txt
-          if-no-files-found: ignore
-          retention-days: 7
